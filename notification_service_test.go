@@ -140,6 +140,24 @@ func TestStopLossNotificationRespectsConfig(t *testing.T) {
 	messenger.expectNoMessage(t, 300*time.Millisecond)
 }
 
+func TestTakeProfitNotificationRespectsConfig(t *testing.T) {
+	config := testConfig()
+	config.NotifyTakeProfit = false
+
+	eventBus, messenger := startTestService(t, config)
+
+	eventBus.PublishData(EventOrderFilled, map[string]interface{}{
+		"id":             "order-tp",
+		"symbol":         "BTCUSD",
+		"side":           "sell",
+		"type":           "take_profit",
+		"quantity":       0.25,
+		"executed_price": 40000.0,
+	})
+
+	messenger.expectNoMessage(t, 300*time.Millisecond)
+}
+
 func TestPositionOpenedNotification(t *testing.T) {
 	config := testConfig()
 	eventBus, messenger := startTestService(t, config)
@@ -209,4 +227,13 @@ func TestErrorNotifications(t *testing.T) {
 		"error":    "division by zero",
 	})
 	messenger.waitForMessage(t, "Strategy Error")
+}
+
+func TestSystemErrorWithNonStringData(t *testing.T) {
+	config := testConfig()
+	eventBus, messenger := startTestService(t, config)
+
+	eventBus.PublishData(EventSystemError, map[string]interface{}{"msg": "boom"})
+
+	messenger.waitForMessage(t, "malformed system error event")
 }
