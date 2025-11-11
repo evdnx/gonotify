@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+// ElementMessenger defines the contract used by NotificationService to send messages.
+type ElementMessenger interface {
+	SendMessage(message string) error
+}
+
 // ElementClient is a client for sending messages to Element messenger
 type ElementClient struct {
 	homeserverURL string

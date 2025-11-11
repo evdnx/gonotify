@@ -7,9 +7,9 @@ import (
 
 // NotificationService handles sending notifications for important events
 type NotificationService struct {
-	elementClient *ElementClient
-	eventBus      *EventBus
-	config        *NotificationConfig
+	messenger ElementMessenger
+	eventBus  *EventBus
+	config    *NotificationConfig
 }
 
 // NotificationConfig contains configuration for the notification service
@@ -52,8 +52,20 @@ func DefaultNotificationConfig() *NotificationConfig {
 	}
 }
 
-// NewNotificationService creates a new notification service
+// NewNotificationService creates a new notification service with the default Element client.
 func NewNotificationService(config *NotificationConfig, eventBus *EventBus) (*NotificationService, error) {
+	return newNotificationService(config, eventBus, nil)
+}
+
+// NewNotificationServiceWithMessenger creates a notification service using a custom messenger implementation.
+func NewNotificationServiceWithMessenger(config *NotificationConfig, eventBus *EventBus, messenger ElementMessenger) (*NotificationService, error) {
+	if messenger == nil {
+		return nil, fmt.Errorf("messenger cannot be nil")
+	}
+	return newNotificationService(config, eventBus, messenger)
+}
+
+func newNotificationService(config *NotificationConfig, eventBus *EventBus, messenger ElementMessenger) (*NotificationService, error) {
 	if config == nil {
 		config = DefaultNotificationConfig()
 	}
@@ -73,24 +85,25 @@ func NewNotificationService(config *NotificationConfig, eventBus *EventBus) (*No
 		eventBus = NewEventBus()
 	}
 
-	// Create Element client
-	elementClient := NewElementClient(
-		config.ElementHomeserverURL,
-		config.ElementAccessToken,
-		config.ElementRoomID,
-	)
+	if messenger == nil {
+		messenger = NewElementClient(
+			config.ElementHomeserverURL,
+			config.ElementAccessToken,
+			config.ElementRoomID,
+		)
+	}
 
 	return &NotificationService{
-		elementClient: elementClient,
-		eventBus:      eventBus,
-		config:        config,
+		messenger: messenger,
+		eventBus:  eventBus,
+		config:    config,
 	}, nil
 }
 
 // Start registers event handlers and starts the notification service
 func (s *NotificationService) Start() error {
 	// Send a startup notification
-	err := s.elementClient.SendMessage("🤖 Notification service started")
+	err := s.messenger.SendMessage("🤖 Notification service started")
 	if err != nil {
 		return fmt.Errorf("failed to send startup notification: %w", err)
 	}
@@ -410,7 +423,7 @@ func (s *NotificationService) sendNotification(message string) {
 
 	// Send the message asynchronously
 	go func() {
-		err := s.elementClient.SendMessage(fullMessage)
+		err := s.messenger.SendMessage(fullMessage)
 		if err != nil {
 			// Log the error but don't propagate it
 			fmt.Printf("Failed to send notification: %v\n", err)
