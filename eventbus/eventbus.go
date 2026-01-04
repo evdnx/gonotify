@@ -1,4 +1,4 @@
-package notifications
+package eventbus
 
 import (
 	"sync"
@@ -98,3 +98,4 @@ func (b *EventBus) PublishData(eventType EventType, data interface{}) {
 		Timestamp: time.Now(),
 	})
 }
+

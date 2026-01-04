@@ -1,16 +1,20 @@
-package notifications
+package gonotify
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/evdnx/gonotify/config"
+	"github.com/evdnx/gonotify/eventbus"
+	"github.com/evdnx/gonotify/service"
 )
 
 // InitializeNotificationSystem initializes and starts the notification system
 // This function is meant to be called during application startup
-func InitializeNotificationSystem(eventBus *EventBus, configPath string) (*NotificationService, error) {
+func InitializeNotificationSystem(eventBus *eventbus.EventBus, configPath string) (*service.NotificationService, error) {
 	if eventBus == nil {
-		eventBus = NewEventBus()
+		eventBus = eventbus.NewEventBus()
 	}
 
 	// If configPath is empty, use default path
@@ -46,31 +50,65 @@ func InitializeNotificationSystem(eventBus *EventBus, configPath string) (*Notif
 	// Check if config file exists, create default if not
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		fmt.Printf("Notification config file not found, creating default at %s\n", configPath)
-		if err := CreateDefaultConfigFile(configPath); err != nil {
+		if err := config.CreateDefaultConfigFile(configPath); err != nil {
 			return nil, fmt.Errorf("failed to create default config file: %w", err)
 		}
 		fmt.Printf("Default notification config created at %s\n", configPath)
-		fmt.Println("Please update the config file with your Element access token and room ID")
+		fmt.Println("Please update the config file with your messenger credentials")
 	}
 
 	// Load notification configuration
-	config, err := LoadConfig(configPath)
+	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load notification config: %w", err)
 	}
 
-	// Check if access token is provided via environment variable
+	// Check if access tokens are provided via environment variables
 	if token := os.Getenv("ELEMENT_ACCESS_TOKEN"); token != "" {
-		config.ElementAccessToken = token
+		cfg.ElementAccessToken = token
+		if cfg.ElementHomeserverURL != "" && cfg.ElementRoomID != "" {
+			cfg.ElementEnabled = true
+		}
 	}
 
-	// Validate access token
-	if config.ElementAccessToken == "" || config.ElementAccessToken == "YOUR_ELEMENT_ACCESS_TOKEN" {
-		return nil, fmt.Errorf("Element access token not provided. Please update %s or set ELEMENT_ACCESS_TOKEN environment variable", configPath)
+	if token := os.Getenv("TELEGRAM_BOT_TOKEN"); token != "" {
+		cfg.TelegramBotToken = token
+		if chatID := os.Getenv("TELEGRAM_CHAT_ID"); chatID != "" {
+			cfg.TelegramChatID = chatID
+			cfg.TelegramEnabled = true
+		}
+	}
+
+	// Validate at least one messenger is configured
+	if !cfg.ElementEnabled && !cfg.TelegramEnabled {
+		return nil, fmt.Errorf("at least one messenger must be enabled. Please update %s or set environment variables", configPath)
+	}
+
+	// Validate Element config if enabled
+	if cfg.ElementEnabled {
+		if cfg.ElementAccessToken == "" || cfg.ElementAccessToken == "YOUR_ELEMENT_ACCESS_TOKEN" {
+			return nil, fmt.Errorf("Element access token not provided. Please update %s or set ELEMENT_ACCESS_TOKEN environment variable", configPath)
+		}
+		if cfg.ElementHomeserverURL == "" {
+			return nil, fmt.Errorf("Element homeserver URL not provided in %s", configPath)
+		}
+		if cfg.ElementRoomID == "" {
+			return nil, fmt.Errorf("Element room ID not provided in %s", configPath)
+		}
+	}
+
+	// Validate Telegram config if enabled
+	if cfg.TelegramEnabled {
+		if cfg.TelegramBotToken == "" || cfg.TelegramBotToken == "YOUR_TELEGRAM_BOT_TOKEN" {
+			return nil, fmt.Errorf("Telegram bot token not provided. Please update %s or set TELEGRAM_BOT_TOKEN environment variable", configPath)
+		}
+		if cfg.TelegramChatID == "" {
+			return nil, fmt.Errorf("Telegram chat ID not provided. Please update %s or set TELEGRAM_CHAT_ID environment variable", configPath)
+		}
 	}
 
 	// Create notification service
-	notificationService, err := NewNotificationService(config, eventBus)
+	notificationService, err := service.NewNotificationService(cfg, eventBus)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create notification service: %w", err)
 	}

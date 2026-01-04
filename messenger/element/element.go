@@ -1,4 +1,4 @@
-package notifications
+package element
 
 import (
 	"bytes"
@@ -8,28 +8,23 @@ import (
 	"time"
 )
 
-// ElementMessenger defines the contract used by NotificationService to send messages.
-type ElementMessenger interface {
-	SendMessage(message string) error
-}
-
-// ElementClient is a client for sending messages to Element messenger
-type ElementClient struct {
+// Client is a client for sending messages to Element (Matrix) messenger
+type Client struct {
 	homeserverURL string
 	accessToken   string
 	roomID        string
 	httpClient    *http.Client
 }
 
-// ElementMessage represents a message to be sent to Element
-type ElementMessage struct {
+// Message represents a message to be sent to Element
+type Message struct {
 	MsgType string `json:"msgtype"`
 	Body    string `json:"body"`
 }
 
-// NewElementClient creates a new Element client
-func NewElementClient(homeserverURL, accessToken, roomID string) *ElementClient {
-	return &ElementClient{
+// NewClient creates a new Element client
+func NewClient(homeserverURL, accessToken, roomID string) *Client {
+	return &Client{
 		homeserverURL: homeserverURL,
 		accessToken:   accessToken,
 		roomID:        roomID,
@@ -40,9 +35,9 @@ func NewElementClient(homeserverURL, accessToken, roomID string) *ElementClient 
 }
 
 // SendMessage sends a message to the Element chat room
-func (c *ElementClient) SendMessage(message string) error {
+func (c *Client) SendMessage(message string) error {
 	// Create the message payload
-	payload := ElementMessage{
+	payload := Message{
 		MsgType: "m.text",
 		Body:    message,
 	}
@@ -80,3 +75,9 @@ func (c *ElementClient) SendMessage(message string) error {
 
 	return nil
 }
+
+// Name returns the name of the messenger
+func (c *Client) Name() string {
+	return "Element"
+}
+

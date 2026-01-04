@@ -1,4 +1,4 @@
-package notifications
+package eventbus
 
 import (
 	"sync"
@@ -45,3 +45,4 @@ func TestEventBusUnsubscribe(t *testing.T) {
 		t.Fatal("handler should not have been invoked after unsubscribe")
 	}
 }
+

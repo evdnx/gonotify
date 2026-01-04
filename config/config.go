@@ -1,4 +1,4 @@
-package notifications
+package config
 
 import (
 	"encoding/json"
@@ -8,8 +8,9 @@ import (
 
 // ConfigFile represents the structure of the notification configuration file
 type ConfigFile struct {
-	Element ElementConfig `json:"element"`
-	Events  EventConfig   `json:"events"`
+	Element  *ElementConfig  `json:"element,omitempty"`
+	Telegram *TelegramConfig `json:"telegram,omitempty"`
+	Events   EventConfig     `json:"events"`
 }
 
 // ElementConfig contains Element messenger configuration
@@ -17,6 +18,14 @@ type ElementConfig struct {
 	HomeserverURL string `json:"homeserver_url"`
 	AccessToken   string `json:"access_token"`
 	RoomID        string `json:"room_id"`
+	Enabled       bool   `json:"enabled"`
+}
+
+// TelegramConfig contains Telegram messenger configuration
+type TelegramConfig struct {
+	BotToken string `json:"bot_token"`
+	ChatID   string `json:"chat_id"`
+	Enabled  bool   `json:"enabled"`
 }
 
 // EventConfig contains event notification configuration
@@ -30,6 +39,55 @@ type EventConfig struct {
 	SystemErrors    bool    `json:"system_errors"`
 	StrategyErrors  bool    `json:"strategy_errors"`
 	ProfitThreshold float64 `json:"profit_threshold"`
+}
+
+// NotificationConfig contains configuration for the notification service
+type NotificationConfig struct {
+	// Element messenger configuration
+	ElementHomeserverURL string
+	ElementAccessToken   string
+	ElementRoomID        string
+	ElementEnabled       bool
+
+	// Telegram messenger configuration
+	TelegramBotToken string
+	TelegramChatID   string
+	TelegramEnabled  bool
+
+	// Event types to notify about
+	NotifyTradeExecution bool
+	NotifyOrderFilled    bool
+	NotifyPositionChange bool
+	NotifyPnLUpdate      bool
+	NotifyStopLoss       bool
+	NotifyTakeProfit     bool
+	NotifySystemErrors   bool
+	NotifyStrategyErrors bool
+
+	// Minimum profit threshold for PnL notifications (as a percentage)
+	ProfitThreshold float64
+}
+
+// DefaultNotificationConfig returns a default notification configuration
+func DefaultNotificationConfig() *NotificationConfig {
+	return &NotificationConfig{
+		ElementHomeserverURL: "https://matrix.org",
+		ElementRoomID:        "!cryptobot:matrix.org",
+		ElementEnabled:       false,
+
+		TelegramEnabled: false,
+
+		NotifyTradeExecution: true,
+		NotifyOrderFilled:    true,
+		NotifyPositionChange: true,
+		NotifyPnLUpdate:      true,
+		NotifyStopLoss:       true,
+		NotifyTakeProfit:     true,
+		NotifySystemErrors:   true,
+		NotifyStrategyErrors: true,
+
+		ProfitThreshold: 1.0, // 1% profit threshold
+	}
 }
 
 // LoadConfig loads notification configuration from a file
@@ -53,10 +111,6 @@ func LoadConfig(filePath string) (*NotificationConfig, error) {
 
 	// Convert to NotificationConfig
 	config := &NotificationConfig{
-		ElementHomeserverURL: configFile.Element.HomeserverURL,
-		ElementAccessToken:   configFile.Element.AccessToken,
-		ElementRoomID:        configFile.Element.RoomID,
-
 		NotifyTradeExecution: configFile.Events.TradeExecution,
 		NotifyOrderFilled:    configFile.Events.OrderFilled,
 		NotifyPositionChange: configFile.Events.PositionChange,
@@ -65,8 +119,22 @@ func LoadConfig(filePath string) (*NotificationConfig, error) {
 		NotifyTakeProfit:     configFile.Events.TakeProfit,
 		NotifySystemErrors:   configFile.Events.SystemErrors,
 		NotifyStrategyErrors: configFile.Events.StrategyErrors,
+		ProfitThreshold:      configFile.Events.ProfitThreshold,
+	}
 
-		ProfitThreshold: configFile.Events.ProfitThreshold,
+	// Load Element config if present
+	if configFile.Element != nil {
+		config.ElementHomeserverURL = configFile.Element.HomeserverURL
+		config.ElementAccessToken = configFile.Element.AccessToken
+		config.ElementRoomID = configFile.Element.RoomID
+		config.ElementEnabled = configFile.Element.Enabled
+	}
+
+	// Load Telegram config if present
+	if configFile.Telegram != nil {
+		config.TelegramBotToken = configFile.Telegram.BotToken
+		config.TelegramChatID = configFile.Telegram.ChatID
+		config.TelegramEnabled = configFile.Telegram.Enabled
 	}
 
 	return config, nil
@@ -76,11 +144,6 @@ func LoadConfig(filePath string) (*NotificationConfig, error) {
 func SaveConfig(config *NotificationConfig, filePath string) error {
 	// Convert to ConfigFile
 	configFile := ConfigFile{
-		Element: ElementConfig{
-			HomeserverURL: config.ElementHomeserverURL,
-			AccessToken:   config.ElementAccessToken,
-			RoomID:        config.ElementRoomID,
-		},
 		Events: EventConfig{
 			TradeExecution:  config.NotifyTradeExecution,
 			OrderFilled:     config.NotifyOrderFilled,
@@ -92,6 +155,25 @@ func SaveConfig(config *NotificationConfig, filePath string) error {
 			StrategyErrors:  config.NotifyStrategyErrors,
 			ProfitThreshold: config.ProfitThreshold,
 		},
+	}
+
+	// Add Element config if enabled
+	if config.ElementEnabled {
+		configFile.Element = &ElementConfig{
+			HomeserverURL: config.ElementHomeserverURL,
+			AccessToken:   config.ElementAccessToken,
+			RoomID:        config.ElementRoomID,
+			Enabled:       config.ElementEnabled,
+		}
+	}
+
+	// Add Telegram config if enabled
+	if config.TelegramEnabled {
+		configFile.Telegram = &TelegramConfig{
+			BotToken: config.TelegramBotToken,
+			ChatID:   config.TelegramChatID,
+			Enabled:  config.TelegramEnabled,
+		}
 	}
 
 	// Convert to JSON
@@ -113,3 +195,4 @@ func CreateDefaultConfigFile(filePath string) error {
 	config := DefaultNotificationConfig()
 	return SaveConfig(config, filePath)
 }
+

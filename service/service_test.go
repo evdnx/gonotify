@@ -1,9 +1,13 @@
-package notifications
+package service
 
 import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/evdnx/gonotify/config"
+	"github.com/evdnx/gonotify/eventbus"
+	"github.com/evdnx/gonotify/messenger"
 )
 
 type mockMessenger struct {
@@ -19,6 +23,10 @@ func newMockMessenger() *mockMessenger {
 func (m *mockMessenger) SendMessage(message string) error {
 	m.ch <- message
 	return nil
+}
+
+func (m *mockMessenger) Name() string {
+	return "Mock"
 }
 
 func (m *mockMessenger) waitForMessage(t *testing.T, contains string) string {
@@ -46,11 +54,13 @@ func (m *mockMessenger) expectNoMessage(t *testing.T, duration time.Duration) {
 	}
 }
 
-func testConfig() *NotificationConfig {
-	return &NotificationConfig{
+func testConfig() *config.NotificationConfig {
+	return &config.NotificationConfig{
 		ElementHomeserverURL: "https://matrix.org",
 		ElementAccessToken:   "token",
 		ElementRoomID:        "!room:id",
+		ElementEnabled:       false,
+		TelegramEnabled:      false,
 		NotifyTradeExecution: true,
 		NotifyOrderFilled:    true,
 		NotifyPositionChange: true,
@@ -63,13 +73,13 @@ func testConfig() *NotificationConfig {
 	}
 }
 
-func startTestService(t *testing.T, cfg *NotificationConfig) (*EventBus, *mockMessenger) {
+func startTestService(t *testing.T, cfg *config.NotificationConfig) (*eventbus.EventBus, *mockMessenger) {
 	t.Helper()
 
-	eventBus := NewEventBus()
-	messenger := newMockMessenger()
+	eventBus := eventbus.NewEventBus()
+	mockMsg := newMockMessenger()
 
-	service, err := NewNotificationServiceWithMessenger(cfg, eventBus, messenger)
+	service, err := NewNotificationServiceWithMessengers(cfg, eventBus, []messenger.Messenger{mockMsg})
 	if err != nil {
 		t.Fatalf("failed to create service: %v", err)
 	}
@@ -78,15 +88,15 @@ func startTestService(t *testing.T, cfg *NotificationConfig) (*EventBus, *mockMe
 		t.Fatalf("failed to start service: %v", err)
 	}
 
-	messenger.waitForMessage(t, "Notification service started")
-	return eventBus, messenger
+	mockMsg.waitForMessage(t, "Notification service started")
+	return eventBus, mockMsg
 }
 
 func TestNotificationServiceSendsTradeNotification(t *testing.T) {
 	config := testConfig()
 	eventBus, messenger := startTestService(t, config)
 
-	eventBus.PublishData(EventTradeExecuted, map[string]interface{}{
+	eventBus.PublishData(eventbus.EventTradeExecuted, map[string]interface{}{
 		"id":          "trade-1",
 		"symbol":      "BTCUSDT",
 		"side":        "buy",
@@ -99,10 +109,10 @@ func TestNotificationServiceSendsTradeNotification(t *testing.T) {
 	messenger.waitForMessage(t, "Trade Executed")
 }
 
-func TestNewNotificationServiceWithMessengerRejectsNil(t *testing.T) {
-	_, err := NewNotificationServiceWithMessenger(DefaultNotificationConfig(), NewEventBus(), nil)
+func TestNewNotificationServiceWithMessengersRejectsEmpty(t *testing.T) {
+	_, err := NewNotificationServiceWithMessengers(testConfig(), eventbus.NewEventBus(), nil)
 	if err == nil {
-		t.Fatal("expected error when messenger is nil")
+		t.Fatal("expected error when messengers is empty")
 	}
 }
 
@@ -110,7 +120,7 @@ func TestOrderFilledNotification(t *testing.T) {
 	config := testConfig()
 	eventBus, messenger := startTestService(t, config)
 
-	eventBus.PublishData(EventOrderFilled, map[string]interface{}{
+	eventBus.PublishData(eventbus.EventOrderFilled, map[string]interface{}{
 		"id":             "order-1",
 		"symbol":         "ETHUSD",
 		"side":           "sell",
@@ -128,7 +138,7 @@ func TestStopLossNotificationRespectsConfig(t *testing.T) {
 
 	eventBus, messenger := startTestService(t, config)
 
-	eventBus.PublishData(EventOrderFilled, map[string]interface{}{
+	eventBus.PublishData(eventbus.EventOrderFilled, map[string]interface{}{
 		"id":             "order-stop",
 		"symbol":         "BTCUSD",
 		"side":           "sell",
@@ -146,7 +156,7 @@ func TestTakeProfitNotificationRespectsConfig(t *testing.T) {
 
 	eventBus, messenger := startTestService(t, config)
 
-	eventBus.PublishData(EventOrderFilled, map[string]interface{}{
+	eventBus.PublishData(eventbus.EventOrderFilled, map[string]interface{}{
 		"id":             "order-tp",
 		"symbol":         "BTCUSD",
 		"side":           "sell",
@@ -162,7 +172,7 @@ func TestPositionOpenedNotification(t *testing.T) {
 	config := testConfig()
 	eventBus, messenger := startTestService(t, config)
 
-	eventBus.PublishData(EventPositionOpened, map[string]interface{}{
+	eventBus.PublishData(eventbus.EventPositionOpened, map[string]interface{}{
 		"id":          "pos-1",
 		"symbol":      "SOLUSD",
 		"side":        "buy",
@@ -177,7 +187,7 @@ func TestPositionClosedNotificationIncludesPnL(t *testing.T) {
 	config := testConfig()
 	eventBus, messenger := startTestService(t, config)
 
-	eventBus.PublishData(EventPositionClosed, map[string]interface{}{
+	eventBus.PublishData(eventbus.EventPositionClosed, map[string]interface{}{
 		"id":             "pos-1",
 		"symbol":         "SOLUSD",
 		"side":           "buy",
@@ -200,14 +210,14 @@ func TestPnLThreshold(t *testing.T) {
 
 	eventBus, messenger := startTestService(t, config)
 
-	eventBus.PublishData(EventPnLUpdate, map[string]interface{}{
+	eventBus.PublishData(eventbus.EventPnLUpdate, map[string]interface{}{
 		"symbol":         "ADAUSD",
 		"pnl":            10.0,
 		"pnl_percentage": 2.0,
 	})
 	messenger.expectNoMessage(t, 300*time.Millisecond)
 
-	eventBus.PublishData(EventPnLUpdate, map[string]interface{}{
+	eventBus.PublishData(eventbus.EventPnLUpdate, map[string]interface{}{
 		"symbol":         "ADAUSD",
 		"pnl":            30.0,
 		"pnl_percentage": 6.0,
@@ -219,10 +229,10 @@ func TestErrorNotifications(t *testing.T) {
 	config := testConfig()
 	eventBus, messenger := startTestService(t, config)
 
-	eventBus.PublishData(EventSystemError, "connection lost")
+	eventBus.PublishData(eventbus.EventSystemError, "connection lost")
 	messenger.waitForMessage(t, "System Error")
 
-	eventBus.PublishData(EventStrategyError, map[string]interface{}{
+	eventBus.PublishData(eventbus.EventStrategyError, map[string]interface{}{
 		"strategy": "mean-revert",
 		"error":    "division by zero",
 	})
@@ -233,7 +243,8 @@ func TestSystemErrorWithNonStringData(t *testing.T) {
 	config := testConfig()
 	eventBus, messenger := startTestService(t, config)
 
-	eventBus.PublishData(EventSystemError, map[string]interface{}{"msg": "boom"})
+	eventBus.PublishData(eventbus.EventSystemError, map[string]interface{}{"msg": "boom"})
 
 	messenger.waitForMessage(t, "malformed system error event")
 }
+

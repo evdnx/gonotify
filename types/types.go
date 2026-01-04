@@ -1,7 +1,4 @@
-package notifications
-
-// This file contains type definitions used by the notification service
-// These types mirror the core types but are defined here to avoid circular dependencies
+package types
 
 // Trade represents a trade executed on an exchange
 type Trade struct {
@@ -42,4 +39,17 @@ type Order struct {
 	ExecutedPrice float64 `json:"executed_price"`
 	Status        string  `json:"status"`
 	Timestamp     int64   `json:"timestamp"`
+}
+
+// PnLUpdate represents a profit and loss update
+type PnLUpdate struct {
+	Symbol        string  `json:"symbol"`
+	PnL           float64 `json:"pnl"`
+	PnLPercentage float64 `json:"pnl_percentage"`
+}
+
+// StrategyError represents a strategy error
+type StrategyError struct {
+	Strategy string `json:"strategy"`
+	Error    string `json:"error"`
 }

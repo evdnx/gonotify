@@ -1,4 +1,4 @@
-package notifications
+package config
 
 import (
 	"path/filepath"
@@ -13,6 +13,10 @@ func TestSaveAndLoadConfig(t *testing.T) {
 		ElementHomeserverURL: "https://matrix.org",
 		ElementAccessToken:   "token",
 		ElementRoomID:        "!room:id",
+		ElementEnabled:       true,
+		TelegramBotToken:     "bot_token",
+		TelegramChatID:       "chat_id",
+		TelegramEnabled:      true,
 		NotifyTradeExecution: true,
 		NotifyOrderFilled:    true,
 		NotifyPositionChange: false,
@@ -36,6 +40,10 @@ func TestSaveAndLoadConfig(t *testing.T) {
 	if loaded.ElementHomeserverURL != original.ElementHomeserverURL ||
 		loaded.ElementAccessToken != original.ElementAccessToken ||
 		loaded.ElementRoomID != original.ElementRoomID ||
+		loaded.ElementEnabled != original.ElementEnabled ||
+		loaded.TelegramBotToken != original.TelegramBotToken ||
+		loaded.TelegramChatID != original.TelegramChatID ||
+		loaded.TelegramEnabled != original.TelegramEnabled ||
 		loaded.NotifyTradeExecution != original.NotifyTradeExecution ||
 		loaded.NotifyOrderFilled != original.NotifyOrderFilled ||
 		loaded.NotifyPositionChange != original.NotifyPositionChange ||
@@ -48,3 +56,4 @@ func TestSaveAndLoadConfig(t *testing.T) {
 		t.Fatal("loaded config does not match original")
 	}
 }
+
