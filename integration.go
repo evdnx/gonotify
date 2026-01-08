@@ -12,7 +12,9 @@ import (
 
 // InitializeNotificationSystem initializes and starts the notification system
 // This function is meant to be called during application startup
-func InitializeNotificationSystem(eventBus *eventbus.EventBus, configPath string) (*service.NotificationService, error) {
+// If telegramBotToken and telegramChatID are provided and telegram is not already configured,
+// they will be used to enable telegram notifications.
+func InitializeNotificationSystem(eventBus *eventbus.EventBus, configPath string, telegramBotToken, telegramChatID string) (*service.NotificationService, error) {
 	if eventBus == nil {
 		eventBus = eventbus.NewEventBus()
 	}
@@ -77,6 +79,13 @@ func InitializeNotificationSystem(eventBus *eventbus.EventBus, configPath string
 			cfg.TelegramChatID = chatID
 			cfg.TelegramEnabled = true
 		}
+	}
+
+	// If telegram is not already enabled/configured, use function parameters if provided
+	if !cfg.TelegramEnabled && telegramBotToken != "" && telegramChatID != "" {
+		cfg.TelegramBotToken = telegramBotToken
+		cfg.TelegramChatID = telegramChatID
+		cfg.TelegramEnabled = true
 	}
 
 	// Validate at least one messenger is configured

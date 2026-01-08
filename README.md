@@ -222,13 +222,25 @@ import (
 )
 
 eventBus := eventbus.NewEventBus()
-service, err := gonotify.InitializeNotificationSystem(eventBus, "configs/notification.json")
+service, err := gonotify.InitializeNotificationSystem(eventBus, "configs/notification.json", "", "")
 if err != nil {
     panic(err)
 }
 ```
 
-The helper ensures the configuration file exists, loads it, optionally reads environment variables, and starts the notification service.
+You can also provide Telegram credentials as function parameters if they're not in the config file:
+
+```go
+// If JSON config doesn't have telegram configured, use function parameters
+service, err := gonotify.InitializeNotificationSystem(
+    eventBus, 
+    "configs/notification.json",
+    "your_telegram_bot_token",
+    "your_telegram_chat_id",
+)
+```
+
+The helper ensures the configuration file exists, loads it, optionally reads environment variables, and starts the notification service. Function parameters for Telegram credentials are used only if Telegram is not already enabled in the config file or environment variables.
 
 ## Package Structure
 
